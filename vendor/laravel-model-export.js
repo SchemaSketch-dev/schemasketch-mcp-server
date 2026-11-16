@@ -9,6 +9,22 @@
 // old `protected $casts` property instead; everything else about a model is
 // unchanged across 10/11/12.
 
+// Diagram content is untrusted (collaborators and invites control every
+// name), and these models end up in app/Models. Names go into the PHP either
+// as single-quoted string literals (phpString) or, where they become a class
+// or method name, reduced to letters, digits and underscores (phpIdentifier).
+
+// Backslashes first, then quotes - see laravel-export.js.
+function phpString(s) {
+  return `'${String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+}
+
+function phpIdentifier(s, fallback) {
+  const id = String(s).replace(/[^A-Za-z0-9_]/g, '');
+  if (!id) return fallback;
+  return /^[0-9]/.test(id) ? `_${id}` : id;
+}
+
 function toStudly(str) {
   return str
     .split(/[_\-\s]+/)
@@ -34,12 +50,12 @@ function singularize(word) {
 }
 
 function className(tableName) {
-  return toStudly(singularize(tableName));
+  return phpIdentifier(toStudly(singularize(tableName)), 'Model');
 }
 
 function relationMethodFromFkColumn(colName) {
   const stripped = /_id$/i.test(colName) ? colName.slice(0, -3) : colName;
-  return toCamel(stripped);
+  return phpIdentifier(toCamel(stripped), 'related');
 }
 
 function castForColumn(col) {
@@ -137,31 +153,31 @@ export function toLaravelModels(schema, laravelVersion = 11) {
       const belongsToName = relationMethodFromFkColumn(fk.childCol);
       relations.get(child)?.push({
         kind: 'BelongsTo',
-        code: `    public function ${belongsToName}(): BelongsTo\n    {\n        return $this->belongsTo(${className(fk.parentTable)}::class, '${fk.childCol}', '${fk.parentCol}');\n    }`,
+        code: `    public function ${belongsToName}(): BelongsTo\n    {\n        return $this->belongsTo(${className(fk.parentTable)}::class, ${phpString(fk.childCol)}, ${phpString(fk.parentCol)});\n    }`,
       });
 
       const isOneToOne = !!(childCol && (childCol.unique || childCol.pk));
-      const parentSideName = isOneToOne ? toCamel(singularize(child)) : toCamel(child);
+      const parentSideName = phpIdentifier(isOneToOne ? toCamel(singularize(child)) : toCamel(child), 'related');
       const kind = isOneToOne ? 'HasOne' : 'HasMany';
       const method = isOneToOne ? 'hasOne' : 'hasMany';
       relations.get(fk.parentTable)?.push({
         kind,
-        code: `    public function ${parentSideName}(): ${kind}\n    {\n        return $this->${method}(${className(child)}::class, '${fk.childCol}', '${fk.parentCol}');\n    }`,
+        code: `    public function ${parentSideName}(): ${kind}\n    {\n        return $this->${method}(${className(child)}::class, ${phpString(fk.childCol)}, ${phpString(fk.parentCol)});\n    }`,
       });
     }
   }
 
   for (const [pivotTable, { fks }] of pivots) {
     const [a, b] = fks;
-    const nameOnA = toCamel(b.parentTable);
-    const nameOnB = toCamel(a.parentTable);
+    const nameOnA = phpIdentifier(toCamel(b.parentTable), 'related');
+    const nameOnB = phpIdentifier(toCamel(a.parentTable), 'related');
     relations.get(a.parentTable)?.push({
       kind: 'BelongsToMany',
-      code: `    public function ${nameOnA}(): BelongsToMany\n    {\n        return $this->belongsToMany(${className(b.parentTable)}::class, '${pivotTable}', '${a.childCol}', '${b.childCol}');\n    }`,
+      code: `    public function ${nameOnA}(): BelongsToMany\n    {\n        return $this->belongsToMany(${className(b.parentTable)}::class, ${phpString(pivotTable)}, ${phpString(a.childCol)}, ${phpString(b.childCol)});\n    }`,
     });
     relations.get(b.parentTable)?.push({
       kind: 'BelongsToMany',
-      code: `    public function ${nameOnB}(): BelongsToMany\n    {\n        return $this->belongsToMany(${className(a.parentTable)}::class, '${pivotTable}', '${b.childCol}', '${a.childCol}');\n    }`,
+      code: `    public function ${nameOnB}(): BelongsToMany\n    {\n        return $this->belongsToMany(${className(a.parentTable)}::class, ${phpString(pivotTable)}, ${phpString(b.childCol)}, ${phpString(a.childCol)});\n    }`,
     });
   }
 
@@ -202,13 +218,13 @@ export function toLaravelModels(schema, laravelVersion = 11) {
     for (const kind of usedImports) importLines.push(relationImport[kind]);
 
     const bodyParts = [];
-    bodyParts.push(`    protected $table = '${table.name}';`);
+    bodyParts.push(`    protected $table = ${phpString(table.name)};`);
     if (!withTimestamps) bodyParts.push(`    public $timestamps = false;`);
     if (fillable.length) {
-      bodyParts.push(`    protected $fillable = [\n${fillable.map((f) => `        '${f}',`).join('\n')}\n    ];`);
+      bodyParts.push(`    protected $fillable = [\n${fillable.map((f) => `        ${phpString(f)},`).join('\n')}\n    ];`);
     }
     if (Object.keys(casts).length) {
-      const entries = Object.entries(casts).map(([k, v]) => `            '${k}' => '${v}',`).join('\n');
+      const entries = Object.entries(casts).map(([k, v]) => `            ${phpString(k)} => ${phpString(v)},`).join('\n');
       if (useCastsMethod) {
         bodyParts.push(`    protected function casts(): array\n    {\n        return [\n${entries}\n        ];\n    }`);
       } else {

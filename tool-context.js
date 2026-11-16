@@ -13,6 +13,7 @@ try {
   // A copy without package.json still names itself as the MCP client.
 }
 
+export const VERSION = version;
 export const USER_AGENT = `SchemaSketch-MCP/${version}`;
 
 const storage = new AsyncLocalStorage();

@@ -7,7 +7,7 @@
 // singleton.
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { withToolContext } from './tool-context.js';
+import { withToolContext, VERSION } from './tool-context.js';
 import { z } from 'zod';
 
 import { parseSchema } from './vendor/parser.js';
@@ -90,7 +90,7 @@ export function createMcpServer(client, { readOnly = false, appUrl = 'https://sc
     throw new Error('Provide either dbml_source or diagram_id.');
   }
 
-  const server = new McpServer({ name: 'schemasketch', version: '1.0.0' });
+  const server = new McpServer({ name: 'schemasketch', version: VERSION });
 
   // Every tool runs with its name in context, so API calls can say which
   // tool they come from (see tool-context.js).

@@ -43,3 +43,22 @@ test('concurrent tool calls keep their own names', async () => {
     assert.deepEqual(seen.map((h) => h['x-schemasketch-action']).sort(), ['export_sql', 'get_diagram']);
   });
 });
+
+test('the MCP handshake reports the package version, not a hard-coded one', async () => {
+  const { readFileSync } = await import('node:fs');
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js');
+  const { InMemoryTransport } = await import('@modelcontextprotocol/sdk/inMemory.js');
+  const { createMcpServer } = await import('./create-server.js');
+  const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  const server = createMcpServer(createClient('tok', 'http://example.test/api'), {});
+  await server.connect(serverSide);
+  const client = new Client({ name: 'test', version: '0' });
+  await client.connect(clientSide);
+  try {
+    assert.deepEqual(client.getServerVersion(), { name: 'schemasketch', version: pkg.version });
+  } finally {
+    await client.close();
+  }
+});

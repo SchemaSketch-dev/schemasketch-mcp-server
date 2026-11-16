@@ -3,13 +3,18 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.0.2 (2026-11-16)
+
+- The MCP handshake reports the package's real version (it always said 1.0.0).
+
 ## 1.0.1 (2026-11-16)
 
 - README written for users: getting a token, `npx`, the hosted server, Claude Desktop,
   the tools.
 - Source published at https://github.com/sioannides/schemasketch-mcp-server; npm
   releases are built there by GitHub Actions with provenance.
-- Smaller install: no longer depends on `express`.
+- No direct dependency on `express` (the hosted server's web framework). The MCP SDK
+  still installs it, so the install size is unchanged.
 
 ## 1.0.0 (2026-11-16)
 

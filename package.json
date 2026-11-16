@@ -1,0 +1,49 @@
+{
+  "name": "schemasketch-mcp-server",
+  "version": "1.0.1",
+  "description": "MCP server exposing SchemaSketch diagrams to MCP-compatible AI clients: list, read, create, edit, validate, and export as SQL, Laravel migrations, or Laravel Eloquent models.",
+  "type": "module",
+  "main": "index.js",
+  "bin": {
+    "schemasketch-mcp-server": "index.js"
+  },
+  "files": [
+    "index.js",
+    "create-server.js",
+    "schemasketch-client.js",
+    "dbml-guide.js",
+    "tool-context.js",
+    "vendor"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test schemasketch-client.test.mjs tool-context.test.mjs",
+    "check-package": "node scripts/check-package.mjs",
+    "prepublishOnly": "npm test && node scripts/check-package.mjs"
+  },
+  "license": "MIT",
+  "author": "Stelios Ioannides",
+  "homepage": "https://schemasketch.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sioannides/schemasketch-mcp-server.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sioannides/schemasketch-mcp-server/issues"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "schemasketch",
+    "database-diagram",
+    "dbml",
+    "erd"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.24.1"
+  }
+}

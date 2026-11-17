@@ -3,6 +3,17 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.2.0 (2026-11-17)
+
+- Composite relationships (`Ref: lines.(order_id, region) > orders.(id, region)`) keep every
+  column. `export_sql` writes the full foreign key, and `export_laravel_migrations` writes
+  `foreign([...])->references([...])`. `export_laravel_models` adds a comment instead of a
+  relation on half the key, because Eloquent has no composite relations. Validation checks
+  every column and reports sides with different column counts.
+- `export_sql` now writes the `indexes` block: a composite primary key, `UNIQUE` constraints
+  (named ones as `CONSTRAINT … UNIQUE`) and `CREATE INDEX` for plain indexes. Before, all of
+  them were left out, so a composite foreign key had no key to point at.
+
 ## 1.1.2 (2026-11-17)
 
 - Fixed: named relationships (`Ref fk_orders_customer: …`, quoted names, `Ref name { … }`)

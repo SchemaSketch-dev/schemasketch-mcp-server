@@ -188,6 +188,11 @@ function fkActionCall(action, kind) {
   return `->on${kind}(${phpString(action)})`;
 }
 
+// 'user_id' for one column, ['order_id', 'order_region'] for a composite key.
+function phpColumns(cols) {
+  return cols.length === 1 ? phpString(cols[0]) : `[${cols.map(phpString).join(', ')}]`;
+}
+
 function pad(n) { return String(n).padStart(2, '0'); }
 
 // "public" is Postgres's default schema, so public.users is just users. Other
@@ -276,24 +281,27 @@ ${body}
   if (fkRefs.length) {
     const byChild = new Map();
     for (const ref of fkRefs) {
-      let child = ref.fromTable, childCol = ref.fromColumn, parent = ref.toTable, parentCol = ref.toColumn;
+      // Composite refs carry every column (fromColumns/toColumns); single ones have one.
+      const fromCols = ref.fromColumns ?? [ref.fromColumn];
+      const toCols = ref.toColumns ?? [ref.toColumn];
+      let child = ref.fromTable, childCols = fromCols, parent = ref.toTable, parentCols = toCols;
       if (ref.type === '<') {
-        child = ref.toTable; childCol = ref.toColumn; parent = ref.fromTable; parentCol = ref.fromColumn;
+        child = ref.toTable; childCols = toCols; parent = ref.fromTable; parentCols = fromCols;
       }
       if (!byChild.has(child)) byChild.set(child, []);
-      byChild.get(child).push({ childCol, parent, parentCol, onDelete: ref.onDelete, onUpdate: ref.onUpdate });
+      byChild.get(child).push({ childCols, parent, parentCols, onDelete: ref.onDelete, onUpdate: ref.onUpdate });
     }
 
     const upBlocks = [];
     const downBlocks = [];
     for (const [child, fks] of byChild) {
       const upLines = fks.map((fk) => {
-        let line = `            $table->foreign(${phpString(fk.childCol)})->references(${phpString(fk.parentCol)})->on(${phpString(tableName(fk.parent))})`;
+        let line = `            $table->foreign(${phpColumns(fk.childCols)})->references(${phpColumns(fk.parentCols)})->on(${phpString(tableName(fk.parent))})`;
         line += fk.onDelete ? fkActionCall(fk.onDelete, 'Delete') : '->cascadeOnDelete()';
         if (fk.onUpdate) line += fkActionCall(fk.onUpdate, 'Update');
         return line + ';';
       }).join('\n');
-      const downLines = fks.map((fk) => `            $table->dropForeign([${phpString(fk.childCol)}]);`).join('\n');
+      const downLines = fks.map((fk) => `            $table->dropForeign([${fk.childCols.map(phpString).join(', ')}]);`).join('\n');
       upBlocks.push(`        Schema::table(${phpString(tableName(child))}, function (Blueprint $table) {\n${upLines}\n        });`);
       downBlocks.push(`        Schema::table(${phpString(tableName(child))}, function (Blueprint $table) {\n${downLines}\n        });`);
     }

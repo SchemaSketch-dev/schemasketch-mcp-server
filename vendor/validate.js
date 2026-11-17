@@ -86,32 +86,49 @@ export function validateSchema(schema) {
 
   const seenRefs = new Set();
   for (const ref of schema.refs) {
-    const key = `${ref.fromTable}.${ref.fromColumn}|${ref.type}|${ref.toTable}.${ref.toColumn}`.toLowerCase();
+    // Composite refs (b.(x, y) > a.(x, y)) list every column; others have one.
+    const fromCols = ref.fromColumns ?? [ref.fromColumn];
+    const toCols = ref.toColumns ?? [ref.toColumn];
+    const side = (table, cols) => (cols.length > 1 ? `${table}.(${cols.join(', ')})` : `${table}.${cols[0]}`);
+    const label = `${side(ref.fromTable, fromCols)} ${ref.type} ${side(ref.toTable, toCols)}`;
+
+    const key = label.toLowerCase();
     if (seenRefs.has(key)) {
       issues.push({
         severity: 'warning',
         category: 'Duplicate relationship',
-        message: `${ref.fromTable}.${ref.fromColumn} ${ref.type} ${ref.toTable}.${ref.toColumn} is declared more than once.`,
+        message: `${label} is declared more than once.`,
       });
     }
     seenRefs.add(key);
 
-    const from = findCol(ref.fromTable, ref.fromColumn);
-    const to = findCol(ref.toTable, ref.toColumn);
-
-    if (!from.table) {
-      issues.push({ severity: 'error', category: 'Unknown table', message: `Relationship references unknown table "${ref.fromTable}".` });
-    } else if (!from.col) {
-      issues.push({ severity: 'error', category: 'Unknown column', message: `Relationship references unknown column "${ref.fromTable}.${ref.fromColumn}".`, table: ref.fromTable });
+    const from = fromCols.map((c) => findCol(ref.fromTable, c));
+    const to = toCols.map((c) => findCol(ref.toTable, c));
+    for (const [tableName, cols, found] of [[ref.fromTable, fromCols, from], [ref.toTable, toCols, to]]) {
+      if (!found[0].table) {
+        issues.push({ severity: 'error', category: 'Unknown table', message: `Relationship references unknown table "${tableName}".` });
+        continue;
+      }
+      found.forEach((f, i) => {
+        if (!f.col) {
+          issues.push({ severity: 'error', category: 'Unknown column', message: `Relationship references unknown column "${tableName}.${cols[i]}".`, table: tableName });
+        }
+      });
     }
-    if (!to.table) {
-      issues.push({ severity: 'error', category: 'Unknown table', message: `Relationship references unknown table "${ref.toTable}".` });
-    } else if (!to.col) {
-      issues.push({ severity: 'error', category: 'Unknown column', message: `Relationship references unknown column "${ref.toTable}.${ref.toColumn}".`, table: ref.toTable });
+
+    if (fromCols.length !== toCols.length) {
+      const n = (k) => `${k} column${k === 1 ? '' : 's'}`;
+      issues.push({
+        severity: 'error',
+        category: 'Column count mismatch',
+        message: `Relationship ${label} has ${n(fromCols.length)} on one side and ${n(toCols.length)} on the other.`,
+        table: ref.fromTable,
+      });
     }
 
-    if (from.col && to.col && ref.type !== '<>') {
-      const oneSide = ref.type === '<' ? from : to;
+    // Only single-column refs: a composite key's columns are unique together, not one by one.
+    if (fromCols.length === 1 && toCols.length === 1 && from[0].col && to[0].col && ref.type !== '<>') {
+      const oneSide = ref.type === '<' ? from[0] : to[0];
       if (!oneSide.col.pk && !oneSide.col.unique) {
         issues.push({
           severity: 'warning',
@@ -122,15 +139,18 @@ export function validateSchema(schema) {
       }
     }
 
-    if (from.col && to.col) {
-      const fromFamily = TYPE_FAMILY[baseType(from.col.type)];
-      const toFamily = TYPE_FAMILY[baseType(to.col.type)];
+    for (let i = 0; i < Math.min(from.length, to.length); i++) {
+      const f = from[i];
+      const t = to[i];
+      if (!f.col || !t.col) continue;
+      const fromFamily = TYPE_FAMILY[baseType(f.col.type)];
+      const toFamily = TYPE_FAMILY[baseType(t.col.type)];
       if (fromFamily && toFamily && fromFamily !== toFamily) {
         issues.push({
           severity: 'warning',
           category: 'Type mismatch',
-          message: `${from.table.name}.${from.col.name} (${from.col.type}) and ${to.table.name}.${to.col.name} (${to.col.type}) have different types — a foreign key should usually match its referenced column's type.`,
-          table: from.table.name,
+          message: `${f.table.name}.${f.col.name} (${f.col.type}) and ${t.table.name}.${t.col.name} (${t.col.type}) have different types — a foreign key should usually match its referenced column's type.`,
+          table: f.table.name,
         });
       }
     }

@@ -66,6 +66,12 @@ function quoteTable(dialect, full) {
   return schema ? `${quoteIdent(dialect, schema)}.${quoteIdent(dialect, name)}` : quoteIdent(dialect, name);
 }
 
+// An index column, or an expression index written in backticks (`lower(email)`),
+// which goes in as written.
+function indexColumn(dialect, col) {
+  return /[`()]/.test(col) ? col.replace(/`/g, '') : quoteIdent(dialect, col);
+}
+
 function createSchemaStatement(dialect, schema) {
   const q = quoteIdent(dialect, schema);
   if (dialect === 'postgres' || dialect === 'mysql') return `CREATE SCHEMA IF NOT EXISTS ${q};`;
@@ -126,7 +132,10 @@ export function toSQL(schema, dialect = 'postgres') {
   for (const table of schema.tables) {
     lines.push(`CREATE TABLE ${quoteTable(dialect, table.name)} (`);
     const colLines = [];
-    const pkCols = table.columns.filter((c) => c.pk).map((c) => c.name);
+    // A key from the indexes block ((id, region) [pk]) when no column is marked pk.
+    const indexes = table.indexes || [];
+    const columnPk = table.columns.filter((c) => c.pk).map((c) => c.name);
+    const pkCols = columnPk.length ? columnPk : (indexes.find((i) => i.pk)?.columns ?? []);
 
     for (const col of table.columns) {
       let type = mapType(dialect, col.type);
@@ -147,20 +156,38 @@ export function toSQL(schema, dialect = 'postgres') {
       colLines.push(line);
     }
     if (pkCols.length) {
-      colLines.push(`  PRIMARY KEY (${pkCols.map((c) => quoteIdent(dialect, c)).join(', ')})`);
+      colLines.push(`  PRIMARY KEY (${pkCols.map((c) => indexColumn(dialect, c)).join(', ')})`);
+    }
+    for (const idx of indexes) {
+      if (!idx.unique || idx.pk) continue;
+      const constraint = idx.name ? `CONSTRAINT ${quoteIdent(dialect, idx.name)} ` : '';
+      colLines.push(`  ${constraint}UNIQUE (${idx.columns.map((c) => indexColumn(dialect, c)).join(', ')})`);
     }
     lines.push(colLines.join(',\n'));
     lines.push(');');
+    for (const idx of indexes) {
+      if (idx.unique || idx.pk) continue;
+      const { schema: tableSchema, name: bare } = splitName(table.name);
+      const fallback = ['ix', tableSchema, bare, ...idx.columns].filter(Boolean).join('_').replace(/[^A-Za-z0-9_]+/g, '_');
+      lines.push(
+        `CREATE INDEX ${quoteIdent(dialect, idx.name || fallback)} ON ${quoteTable(dialect, table.name)} ` +
+        `(${idx.columns.map((c) => indexColumn(dialect, c)).join(', ')});`,
+      );
+    }
     if (table.note) lines.push(`-- ${table.note}`);
     lines.push('');
   }
 
   for (const ref of schema.refs) {
     // many side gets the FK; '>' means from is many -> to is one
-    let childTable = ref.fromTable, childCol = ref.fromColumn, parentTable = ref.toTable, parentCol = ref.toColumn;
+    // Composite refs carry every column (fromColumns/toColumns); single ones have one.
+    const fromCols = ref.fromColumns ?? [ref.fromColumn];
+    const toCols = ref.toColumns ?? [ref.toColumn];
+    let childTable = ref.fromTable, childCols = fromCols, parentTable = ref.toTable, parentCols = toCols;
     if (ref.type === '<') {
-      childTable = ref.toTable; childCol = ref.toColumn; parentTable = ref.fromTable; parentCol = ref.fromColumn;
+      childTable = ref.toTable; childCols = toCols; parentTable = ref.fromTable; parentCols = fromCols;
     }
+    const childCol = childCols[0];
     if (ref.type === '<>') {
       // many-to-many: skip auto FK generation (would need join table)
       continue;
@@ -170,7 +197,8 @@ export function toSQL(schema, dialect = 'postgres') {
     const fkName = ref.name || `fk_${child.schema ? `${child.schema}_` : ''}${child.name}_${childCol}`;
     lines.push(
       `ALTER TABLE ${quoteTable(dialect, childTable)} ADD CONSTRAINT ${quoteIdent(dialect, fkName)} ` +
-      `FOREIGN KEY (${quoteIdent(dialect, childCol)}) REFERENCES ${quoteTable(dialect, parentTable)} (${quoteIdent(dialect, parentCol)});`
+      `FOREIGN KEY (${childCols.map((c) => quoteIdent(dialect, c)).join(', ')}) ` +
+      `REFERENCES ${quoteTable(dialect, parentTable)} (${parentCols.map((c) => quoteIdent(dialect, c)).join(', ')});`
     );
   }
 

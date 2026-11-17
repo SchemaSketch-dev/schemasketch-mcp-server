@@ -161,8 +161,25 @@ export function toLaravelModels(schema, laravelVersion = 11) {
   const useCastsMethod = version >= 11;
 
   const fksByTable = new Map(); // childTable -> [{childTable, childCol, parentTable, parentCol}]
+  // Eloquent has no composite relations: a belongsTo on half the key would match the
+  // wrong rows. Those refs get a comment on the child model instead.
+  const compositeNotes = new Map(); // childTable -> [comment line]
+  const oneLine = (v) => String(v).replace(/[\r\n]+/g, ' ');
   for (const ref of schema.refs) {
     if (ref.type === '<>') continue; // direct many-to-many with no modeled pivot - no table to point belongsToMany() at
+    const fromCols = ref.fromColumns ?? [ref.fromColumn];
+    const toCols = ref.toColumns ?? [ref.toColumn];
+    if (fromCols.length > 1 || toCols.length > 1) {
+      const [child, childCols, parent, parentCols] = ref.type === '<'
+        ? [ref.toTable, toCols, ref.fromTable, fromCols]
+        : [ref.fromTable, fromCols, ref.toTable, toCols];
+      if (!compositeNotes.has(child)) compositeNotes.set(child, []);
+      compositeNotes.get(child).push(oneLine(
+        `    // Composite foreign key (${childCols.join(', ')}) -> ${tableName(parent)} (${parentCols.join(', ')}): ` +
+        'Eloquent has no composite relations, so none is generated.',
+      ));
+      continue;
+    }
     const fk = resolveFk(ref);
     if (!fksByTable.has(fk.childTable)) fksByTable.set(fk.childTable, []);
     fksByTable.get(fk.childTable).push(fk);
@@ -263,6 +280,8 @@ export function toLaravelModels(schema, laravelVersion = 11) {
       }
     }
     for (const r of tableRelations) bodyParts.push(r.code);
+    const notes = compositeNotes.get(table.name);
+    if (notes) bodyParts.push(notes.join('\n'));
 
     const traits = withSoftDeletes ? '\n    use SoftDeletes;\n' : '';
 

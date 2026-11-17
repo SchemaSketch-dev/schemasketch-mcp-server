@@ -3,6 +3,11 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.1.1 (2026-11-17)
+
+- README badges: version, tests, downloads, Node, MCP, license, service status. No code
+  changes.
+
 ## 1.1.0 (2026-11-17)
 
 - Fixed: diagrams with schemas (`public.users`, `billing.invoices`). Relationships between

@@ -1,5 +1,13 @@
 # SchemaSketch MCP server
 
+[![Latest version](https://img.shields.io/npm/v/schemasketch-mcp-server?label=version)](https://www.npmjs.com/package/schemasketch-mcp-server)
+[![Tests](https://github.com/SchemaSketch-dev/schemasketch-mcp-server/actions/workflows/check.yml/badge.svg?branch=main)](https://github.com/SchemaSketch-dev/schemasketch-mcp-server/actions/workflows/check.yml)
+[![Downloads](https://img.shields.io/npm/dm/schemasketch-mcp-server)](https://www.npmjs.com/package/schemasketch-mcp-server)
+[![Node](https://img.shields.io/node/v/schemasketch-mcp-server)](package.json)
+[![MCP](https://img.shields.io/badge/MCP-server-6E56CF)](https://modelcontextprotocol.io)
+[![License](https://img.shields.io/npm/l/schemasketch-mcp-server)](LICENSE)
+[![SchemaSketch status](https://img.shields.io/endpoint?url=https%3A%2F%2Fstatus.schemasketch.dev%2Fbadge.json)](https://status.schemasketch.dev)
+
 Lets AI agents (Claude, Cursor, Windsurf, Gemini and any other MCP client) read and edit
 your [SchemaSketch](https://schemasketch.dev) database diagrams: list them, read and write
 DBML, validate it, and convert to and from SQL, Laravel migrations and Eloquent models,

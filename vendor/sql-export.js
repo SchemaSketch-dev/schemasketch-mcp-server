@@ -166,7 +166,8 @@ export function toSQL(schema, dialect = 'postgres') {
       continue;
     }
     const child = splitName(childTable);
-    const fkName = `fk_${child.schema ? `${child.schema}_` : ''}${child.name}_${childCol}`;
+    // A named ref (Ref fk_orders_customer: ...) names its constraint.
+    const fkName = ref.name || `fk_${child.schema ? `${child.schema}_` : ''}${child.name}_${childCol}`;
     lines.push(
       `ALTER TABLE ${quoteTable(dialect, childTable)} ADD CONSTRAINT ${quoteIdent(dialect, fkName)} ` +
       `FOREIGN KEY (${quoteIdent(dialect, childCol)}) REFERENCES ${quoteTable(dialect, parentTable)} (${quoteIdent(dialect, parentCol)});`

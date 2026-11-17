@@ -3,6 +3,12 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.1.2 (2026-11-17)
+
+- Fixed: named relationships (`Ref fk_orders_customer: …`, quoted names, `Ref name { … }`)
+  were dropped from every export, and a named `Ref` line followed by a table swallowed that
+  table. `export_sql` now uses the name as the constraint name.
+
 ## 1.1.1 (2026-11-17)
 
 - README badges: version, tests, downloads, Node, MCP, license, service status. No code

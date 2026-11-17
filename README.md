@@ -83,15 +83,15 @@ The same 15 tools in every setup:
   with `retry_after` in seconds.
 - An invalid or expired token returns a message telling you to create a new one.
 - Agents work better with the SchemaSketch skill installed:
-  `npx skills add sioannides/schemasketch-skills`
-  ([more install options](https://github.com/sioannides/schemasketch-skills)).
+  `npx skills add SchemaSketch-dev/schemasketch-skills`
+  ([more install options](https://github.com/SchemaSketch-dev/schemasketch-skills)).
 
 Full documentation: [schemasketch.dev/docs](https://schemasketch.dev/docs#mcp-docs)
 
 ## Source and issues
 
-Source: [github.com/sioannides/schemasketch-mcp-server](https://github.com/sioannides/schemasketch-mcp-server).
-Report problems in its [issues](https://github.com/sioannides/schemasketch-mcp-server/issues)
+Source: [github.com/SchemaSketch-dev/schemasketch-mcp-server](https://github.com/SchemaSketch-dev/schemasketch-mcp-server).
+Report problems in its [issues](https://github.com/SchemaSketch-dev/schemasketch-mcp-server/issues)
 or at hello@schemasketch.dev. Changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
 ## License

@@ -3,6 +3,12 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.0.4 (2026-11-17)
+
+- The source moved to the SchemaSketch organization on GitHub:
+  https://github.com/SchemaSketch-dev/schemasketch-mcp-server (old links redirect). No code
+  changes.
+
 ## 1.0.3 (2026-11-16)
 
 - **Security:** `export_laravel_migrations` and `export_laravel_models` could turn names
@@ -23,7 +29,7 @@
 
 - README written for users: getting a token, `npx`, the hosted server, Claude Desktop,
   the tools.
-- Source published at https://github.com/sioannides/schemasketch-mcp-server; npm
+- Source published at https://github.com/SchemaSketch-dev/schemasketch-mcp-server; npm
   releases are built there by GitHub Actions with provenance.
 - No direct dependency on `express` (the hosted server's web framework). The MCP SDK
   still installs it, so the install size is unchanged.

@@ -1,6 +1,6 @@
 {
   "name": "schemasketch-mcp-server",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MCP server exposing SchemaSketch diagrams to MCP-compatible AI clients: list, read, create, edit, validate, and export as SQL, Laravel migrations, or Laravel Eloquent models.",
   "type": "module",
   "main": "index.js",
@@ -29,10 +29,10 @@
   "homepage": "https://schemasketch.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sioannides/schemasketch-mcp-server.git"
+    "url": "git+https://github.com/SchemaSketch-dev/schemasketch-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/sioannides/schemasketch-mcp-server/issues"
+    "url": "https://github.com/SchemaSketch-dev/schemasketch-mcp-server/issues"
   },
   "keywords": [
     "mcp",

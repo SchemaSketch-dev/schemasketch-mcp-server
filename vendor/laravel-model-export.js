@@ -49,8 +49,37 @@ function singularize(word) {
   return word;
 }
 
+// "billing.invoices" -> "invoices". Class and method names come from the
+// table's own name; the schema only appears in `protected $table`.
+function baseName(tableName) {
+  return String(tableName).slice(String(tableName).lastIndexOf('.') + 1);
+}
+
+// "public" is Postgres's default schema, so public.users is just users.
+function tableName(name) {
+  return String(name).replace(/^public\./i, '');
+}
+
+// Not 'Model': that's the Eloquent class every model extends.
 function className(tableName) {
-  return phpIdentifier(toStudly(singularize(tableName)), 'Model');
+  const fromBase = phpIdentifier(toStudly(singularize(baseName(tableName))), '');
+  return fromBase || phpIdentifier(toStudly(singularize(String(tableName))), 'TableModel');
+}
+
+// One class per table. When two schemas share a table name (public.users and
+// audit.users), the non-public one gets its schema as a prefix: User, AuditUser.
+function classNames(tables) {
+  const plain = new Map(tables.map((t) => [t.name, className(t.name)]));
+  const counts = new Map();
+  for (const c of plain.values()) counts.set(c, (counts.get(c) || 0) + 1);
+  const names = new Map();
+  for (const t of tables) {
+    const c = plain.get(t.name);
+    const qualified = tableName(t.name);
+    const schema = qualified.includes('.') ? qualified.slice(0, qualified.lastIndexOf('.')) : null;
+    names.set(t.name, counts.get(c) > 1 && schema ? phpIdentifier(toStudly(schema) + c, c) : c);
+  }
+  return names;
 }
 
 function relationMethodFromFkColumn(colName) {
@@ -140,6 +169,8 @@ export function toLaravelModels(schema, laravelVersion = 11) {
   }
 
   const pivots = findPivotTables(schema.tables, fksByTable);
+  const names = classNames(schema.tables);
+  const cls = (table) => names.get(table) || className(table);
 
   // relations[tableName] accumulates { name, kind, code } entries as both
   // sides of every ref/pivot are discovered, before any file is rendered.
@@ -153,31 +184,31 @@ export function toLaravelModels(schema, laravelVersion = 11) {
       const belongsToName = relationMethodFromFkColumn(fk.childCol);
       relations.get(child)?.push({
         kind: 'BelongsTo',
-        code: `    public function ${belongsToName}(): BelongsTo\n    {\n        return $this->belongsTo(${className(fk.parentTable)}::class, ${phpString(fk.childCol)}, ${phpString(fk.parentCol)});\n    }`,
+        code: `    public function ${belongsToName}(): BelongsTo\n    {\n        return $this->belongsTo(${cls(fk.parentTable)}::class, ${phpString(fk.childCol)}, ${phpString(fk.parentCol)});\n    }`,
       });
 
       const isOneToOne = !!(childCol && (childCol.unique || childCol.pk));
-      const parentSideName = phpIdentifier(isOneToOne ? toCamel(singularize(child)) : toCamel(child), 'related');
+      const parentSideName = phpIdentifier(isOneToOne ? toCamel(singularize(baseName(child))) : toCamel(baseName(child)), 'related');
       const kind = isOneToOne ? 'HasOne' : 'HasMany';
       const method = isOneToOne ? 'hasOne' : 'hasMany';
       relations.get(fk.parentTable)?.push({
         kind,
-        code: `    public function ${parentSideName}(): ${kind}\n    {\n        return $this->${method}(${className(child)}::class, ${phpString(fk.childCol)}, ${phpString(fk.parentCol)});\n    }`,
+        code: `    public function ${parentSideName}(): ${kind}\n    {\n        return $this->${method}(${cls(child)}::class, ${phpString(fk.childCol)}, ${phpString(fk.parentCol)});\n    }`,
       });
     }
   }
 
   for (const [pivotTable, { fks }] of pivots) {
     const [a, b] = fks;
-    const nameOnA = phpIdentifier(toCamel(b.parentTable), 'related');
-    const nameOnB = phpIdentifier(toCamel(a.parentTable), 'related');
+    const nameOnA = phpIdentifier(toCamel(baseName(b.parentTable)), 'related');
+    const nameOnB = phpIdentifier(toCamel(baseName(a.parentTable)), 'related');
     relations.get(a.parentTable)?.push({
       kind: 'BelongsToMany',
-      code: `    public function ${nameOnA}(): BelongsToMany\n    {\n        return $this->belongsToMany(${className(b.parentTable)}::class, ${phpString(pivotTable)}, ${phpString(a.childCol)}, ${phpString(b.childCol)});\n    }`,
+      code: `    public function ${nameOnA}(): BelongsToMany\n    {\n        return $this->belongsToMany(${cls(b.parentTable)}::class, ${phpString(tableName(pivotTable))}, ${phpString(a.childCol)}, ${phpString(b.childCol)});\n    }`,
     });
     relations.get(b.parentTable)?.push({
       kind: 'BelongsToMany',
-      code: `    public function ${nameOnB}(): BelongsToMany\n    {\n        return $this->belongsToMany(${className(a.parentTable)}::class, ${phpString(pivotTable)}, ${phpString(b.childCol)}, ${phpString(a.childCol)});\n    }`,
+      code: `    public function ${nameOnB}(): BelongsToMany\n    {\n        return $this->belongsToMany(${cls(a.parentTable)}::class, ${phpString(tableName(pivotTable))}, ${phpString(b.childCol)}, ${phpString(a.childCol)});\n    }`,
     });
   }
 
@@ -218,7 +249,7 @@ export function toLaravelModels(schema, laravelVersion = 11) {
     for (const kind of usedImports) importLines.push(relationImport[kind]);
 
     const bodyParts = [];
-    bodyParts.push(`    protected $table = ${phpString(table.name)};`);
+    bodyParts.push(`    protected $table = ${phpString(tableName(table.name))};`);
     if (!withTimestamps) bodyParts.push(`    public $timestamps = false;`);
     if (fillable.length) {
       bodyParts.push(`    protected $fillable = [\n${fillable.map((f) => `        ${phpString(f)},`).join('\n')}\n    ];`);
@@ -241,12 +272,12 @@ namespace App\\Models;
 
 ${importLines.join('\n')}
 
-class ${className(table.name)} extends Model
+class ${cls(table.name)} extends Model
 {${traits}
 ${bodyParts.join('\n\n')}
 }
 `;
-    files.push({ filename: `${className(table.name)}.php`, content });
+    files.push({ filename: `${cls(table.name)}.php`, content });
   }
 
   return files;

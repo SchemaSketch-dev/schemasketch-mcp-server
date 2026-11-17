@@ -3,6 +3,21 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.1.0 (2026-11-17)
+
+- Fixed: diagrams with schemas (`public.users`, `billing.invoices`). Relationships between
+  schema-qualified tables lost their schema, so saving was rejected ("unknown table") and
+  every export pointed at the wrong table. `public` now counts as the default schema
+  (`users` and `public.users` are the same table).
+- `export_sql`: schema and table are quoted separately (`"billing"."invoices"`, not
+  `"billing.invoices"`), the schemas a diagram uses are created first (Postgres, MySQL,
+  SQL Server), the `public.` prefix is dropped, and constraint names have no dots.
+- `export_laravel_migrations`: a first migration creates the schemas (Postgres only), and
+  `public.` is dropped.
+- `export_laravel_models`: classes are named after the table, not the schema (`Invoice`, not
+  `Billinginvoice`). When two schemas share a table name, the non-public one gets its schema as
+  a prefix (`AuditUser`).
+
 ## 1.0.4 (2026-11-17)
 
 - The source moved to the SchemaSketch organization on GitHub:

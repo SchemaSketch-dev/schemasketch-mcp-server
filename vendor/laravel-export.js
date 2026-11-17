@@ -190,6 +190,46 @@ function fkActionCall(action, kind) {
 
 function pad(n) { return String(n).padStart(2, '0'); }
 
+// "public" is Postgres's default schema, so public.users is just users. Other
+// schemas stay: Laravel's Postgres grammar handles 'billing.invoices'.
+function tableName(name) {
+  return String(name).replace(/^public\./i, '');
+}
+
+function schemaOf(name) {
+  const n = tableName(name);
+  const i = n.lastIndexOf('.');
+  return i === -1 ? null : n.slice(0, i);
+}
+
+function schemasMigration(schemas) {
+  const statements = schemas
+    .map((s) => `            DB::statement(${phpString(`CREATE SCHEMA IF NOT EXISTS "${s.replace(/"/g, '""')}"`)});`)
+    .join('\n');
+  return `<?php
+
+use Illuminate\\Database\\Migrations\\Migration;
+use Illuminate\\Support\\Facades\\DB;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        // Only Postgres has schemas. On MySQL, 'billing.invoices' means a
+        // database named billing, which must already exist.
+        if (DB::getDriverName() === 'pgsql') {
+${statements}
+        }
+    }
+
+    public function down(): void
+    {
+        // Schemas are left in place: other tables or objects may live in them.
+    }
+};
+`;
+}
+
 function migrationTimestamp(baseDate, offsetSeconds) {
   const d = new Date(baseDate.getTime() + offsetSeconds * 1000);
   return `${d.getFullYear()}_${pad(d.getMonth() + 1)}_${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
@@ -198,6 +238,11 @@ function migrationTimestamp(baseDate, offsetSeconds) {
 export function toLaravelMigrations(schema) {
   const files = [];
   const baseDate = new Date();
+
+  const schemas = [...new Set(schema.tables.map((t) => schemaOf(t.name)).filter(Boolean))];
+  if (schemas.length) {
+    files.push({ filename: `${migrationTimestamp(baseDate, -10)}_create_schemas.php`, content: schemasMigration(schemas) });
+  }
 
   schema.tables.forEach((table, i) => {
     const body = buildColumnLines(table, schema.enums);
@@ -212,18 +257,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create(${phpString(table.name)}, function (Blueprint $table) {
+        Schema::create(${phpString(tableName(table.name))}, function (Blueprint $table) {
 ${body}
         });
     }
 
     public function down(): void
     {
-        Schema::dropIfExists(${phpString(table.name)});
+        Schema::dropIfExists(${phpString(tableName(table.name))});
     }
 };
 `;
-    const filename = `${migrationTimestamp(baseDate, i * 10)}_create_${fileSlug(table.name)}_table.php`;
+    const filename = `${migrationTimestamp(baseDate, i * 10)}_create_${fileSlug(tableName(table.name))}_table.php`;
     files.push({ filename, content });
   });
 
@@ -243,14 +288,14 @@ ${body}
     const downBlocks = [];
     for (const [child, fks] of byChild) {
       const upLines = fks.map((fk) => {
-        let line = `            $table->foreign(${phpString(fk.childCol)})->references(${phpString(fk.parentCol)})->on(${phpString(fk.parent)})`;
+        let line = `            $table->foreign(${phpString(fk.childCol)})->references(${phpString(fk.parentCol)})->on(${phpString(tableName(fk.parent))})`;
         line += fk.onDelete ? fkActionCall(fk.onDelete, 'Delete') : '->cascadeOnDelete()';
         if (fk.onUpdate) line += fkActionCall(fk.onUpdate, 'Update');
         return line + ';';
       }).join('\n');
       const downLines = fks.map((fk) => `            $table->dropForeign([${phpString(fk.childCol)}]);`).join('\n');
-      upBlocks.push(`        Schema::table(${phpString(child)}, function (Blueprint $table) {\n${upLines}\n        });`);
-      downBlocks.push(`        Schema::table(${phpString(child)}, function (Blueprint $table) {\n${downLines}\n        });`);
+      upBlocks.push(`        Schema::table(${phpString(tableName(child))}, function (Blueprint $table) {\n${upLines}\n        });`);
+      downBlocks.push(`        Schema::table(${phpString(tableName(child))}, function (Blueprint $table) {\n${downLines}\n        });`);
     }
 
     const content = `<?php

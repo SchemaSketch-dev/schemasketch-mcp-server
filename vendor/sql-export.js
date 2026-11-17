@@ -50,6 +50,32 @@ function quoteIdent(dialect, name) {
   return DIALECTS[dialect].quote(name);
 }
 
+// "billing.invoices" -> { schema: 'billing', name: 'invoices' }. "public" is the
+// default schema, so public.users is just users.
+function splitName(full) {
+  const i = full.lastIndexOf('.');
+  if (i === -1) return { schema: null, name: full };
+  const schema = full.slice(0, i);
+  return { schema: schema.toLowerCase() === 'public' ? null : schema, name: full.slice(i + 1) };
+}
+
+// Schema and table are quoted separately: "billing"."invoices", not "billing.invoices"
+// (which would be one table with a dot in its name).
+function quoteTable(dialect, full) {
+  const { schema, name } = splitName(full);
+  return schema ? `${quoteIdent(dialect, schema)}.${quoteIdent(dialect, name)}` : quoteIdent(dialect, name);
+}
+
+function createSchemaStatement(dialect, schema) {
+  const q = quoteIdent(dialect, schema);
+  if (dialect === 'postgres' || dialect === 'mysql') return `CREATE SCHEMA IF NOT EXISTS ${q};`;
+  if (dialect === 'mssql') {
+    const lit = (s) => s.replace(/'/g, "''");
+    return `IF SCHEMA_ID(N'${lit(schema)}') IS NULL EXEC(N'CREATE SCHEMA ${lit(q)}');`;
+  }
+  return null; // Oracle: a schema is a user, created by a DBA, not by DDL like this
+}
+
 function mapType(dialect, rawType) {
   const d = DIALECTS[dialect];
   const m = rawType.trim().match(/^(\w+)\s*(?:\(([^)]*)\))?$/);
@@ -82,15 +108,23 @@ export function toSQL(schema, dialect = 'postgres') {
   const d = DIALECTS[dialect];
   const lines = [];
 
+  const schemas = [...new Set(
+    [...schema.tables, ...(dialect === 'postgres' ? schema.enums : [])]
+      .map((t) => splitName(t.name).schema)
+      .filter(Boolean),
+  )];
+  const schemaLines = schemas.map((name) => createSchemaStatement(dialect, name)).filter(Boolean);
+  if (schemaLines.length) lines.push(...schemaLines, '');
+
   for (const en of schema.enums) {
     if (dialect === 'postgres') {
-      lines.push(`CREATE TYPE ${quoteIdent(dialect, en.name)} AS ENUM (${en.values.map((v) => `'${v}'`).join(', ')});`);
+      lines.push(`CREATE TYPE ${quoteTable(dialect, en.name)} AS ENUM (${en.values.map((v) => `'${v}'`).join(', ')});`);
       lines.push('');
     }
   }
 
   for (const table of schema.tables) {
-    lines.push(`CREATE TABLE ${quoteIdent(dialect, table.name)} (`);
+    lines.push(`CREATE TABLE ${quoteTable(dialect, table.name)} (`);
     const colLines = [];
     const pkCols = table.columns.filter((c) => c.pk).map((c) => c.name);
 
@@ -131,10 +165,11 @@ export function toSQL(schema, dialect = 'postgres') {
       // many-to-many: skip auto FK generation (would need join table)
       continue;
     }
-    const fkName = `fk_${childTable}_${childCol}`;
+    const child = splitName(childTable);
+    const fkName = `fk_${child.schema ? `${child.schema}_` : ''}${child.name}_${childCol}`;
     lines.push(
-      `ALTER TABLE ${quoteIdent(dialect, childTable)} ADD CONSTRAINT ${quoteIdent(dialect, fkName)} ` +
-      `FOREIGN KEY (${quoteIdent(dialect, childCol)}) REFERENCES ${quoteIdent(dialect, parentTable)} (${quoteIdent(dialect, parentCol)});`
+      `ALTER TABLE ${quoteTable(dialect, childTable)} ADD CONSTRAINT ${quoteIdent(dialect, fkName)} ` +
+      `FOREIGN KEY (${quoteIdent(dialect, childCol)}) REFERENCES ${quoteTable(dialect, parentTable)} (${quoteIdent(dialect, parentCol)});`
     );
   }
 

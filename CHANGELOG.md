@@ -3,6 +3,12 @@
 `schemasketch-mcp-server`, the local (stdio) SchemaSketch MCP server. Versions follow
 [Semantic Versioning](https://semver.org).
 
+## 1.3.0 (2026-11-17)
+
+- `TablePartial` support (`~name` injects a partial's columns, indexes and settings, as in
+  DBML). Before, partials were ignored without any error, so their columns were missing from
+  every export.
+
 ## 1.2.0 (2026-11-17)
 
 - Composite relationships (`Ref: lines.(order_id, region) > orders.(id, region)`) keep every

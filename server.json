@@ -1,0 +1,49 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "dev.schemasketch/mcp-server",
+  "title": "SchemaSketch",
+  "description": "Design database diagrams in DBML: create, edit, validate, export SQL, Laravel, Mermaid.",
+  "version": "1.3.1",
+  "websiteUrl": "https://schemasketch.dev/mcp",
+  "repository": {
+    "url": "https://github.com/SchemaSketch-dev/schemasketch-mcp-server",
+    "source": "github"
+  },
+  "icons": [
+    { "src": "https://schemasketch.dev/apple-touch-icon.png", "mimeType": "image/png", "sizes": ["180x180"] }
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "schemasketch-mcp-server",
+      "version": "1.3.1",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        {
+          "name": "SCHEMASKETCH_TOKEN",
+          "description": "Token from schemasketch.dev (Connect AI agent in the app menu). Offline tools work without it.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.schemasketch.dev/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Your schemasketch.dev token (Connect AI agent in the app menu), as Bearer <token>.",
+          "isRequired": true,
+          "isSecret": true,
+          "value": "Bearer {api_token}",
+          "variables": {
+            "api_token": { "description": "Your schemasketch.dev API token", "isRequired": true, "isSecret": true }
+          }
+        }
+      ]
+    }
+  ]
+}
